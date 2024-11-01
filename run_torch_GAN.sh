@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=1,2,3 python torch_train_GAN.py --batch-size 126 --lr 1e-4 --log-writer 'tensorboard' --epochs 20 --ckpt-epoch 10 --ckpt-name 'test_GAN_epoch_9.ckpt'  --microbatch 6 --pretrained --distributed &> out.log 
