@@ -14,7 +14,7 @@
 # GPU-3 
 source /home/rawangq1/git_wq/SSL_veronika/.venv/bin/activate
 
-python /home/rawangq1/git_wq/SSL_veronika/utils/mp_3Dslice2D.py /mnt/qdata/share/rawangq1/ukbdata_70k/abdominal_MRI/sim/
+python /home/rawangq1/git_wq/SSL_veronika/utils/mp_3Dslice2D.py /mnt/qdata/share/rawangq1/ukbdata_70k/abdominal_MRI/sim/ 5
 ## srun exec/run_gpu3.sh 3
 ## sacct -j $SLURM_JOB_ID --format=JobID,JobName,State,Elapsed,AveCPU,AllocCPUS,AllocGRES,ReqMem
 

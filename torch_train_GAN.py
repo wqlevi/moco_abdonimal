@@ -64,7 +64,6 @@ def build_loader(rank, world_size, dataset, batch_size):
     dataloader = MyLoader(dataset, batch_size=batch_size, shuffle=False, sampler=data_sampler if world_size>1 else None, drop_last=True, to_numpy=False)
     return dataloader
 
-# FIXME: write train_step and val_step into runner class to avoid variable passing and DDP, compile problems
 def train_step(rank, world_size, epoch, model, dataloader, optimizers:Tuple, writer, log, opt)->int:
 
     current_sigma = (opt.noise_max_epochs - epoch)/ opt.noise_max_epochs
@@ -126,19 +125,13 @@ def train_step(rank, world_size, epoch, model, dataloader, optimizers:Tuple, wri
 
             val_step(rank, world_size, epoch*len(train_dataloader)+i, model, val_dataloader, writer, log, opt)
 
-    #gt_total = all_cat_cpu(opt, log, batch['gt'].to(rank))
-    #img_total = all_cat_cpu(opt, log, pred)
-
-    #grid_gt = make_grid(gt_total, nrow=16)
-    #grid = make_grid(img_total, nrow=16)
-    #writer.add_image(epoch*len(dataloader), 'train/gt', grid_gt)
-    #writer.add_image(epoch*len(dataloader), 'train/pred', grid)
     log.info("[epoch]: {} | [G loss]: {} | [D loss]: {}".format(epoch, loss_epoch_g/i, loss_epoch_d/i))
     return epoch*len(train_dataloader)+i
 
 @torch.no_grad()
 def val_step(rank, world_size, step, model, dataloader, writer, log, opt):
-    metrics_fn = lambda dst, src: (psnr(dst, src), ssim(dst, src))
+    #metrics_fn = lambda dst, src: (psnr(dst, src), ssim(dst, src))
+    metrics_fn = lambda dst, src: psnr(dst, src)
     model.Gnet.eval()
     model.Dnet.eval()
     batch = next(iter(dataloader))
@@ -146,15 +139,19 @@ def val_step(rank, world_size, step, model, dataloader, writer, log, opt):
     loss_v, pred = model.G_loss(img, gt)
 
     #psnr_v, ssim_v = metrics_fn(pred.cpu().numpy(), batch['gt'].numpy())
+    psnr_v = metrics_fn(pred.cpu().numpy(), batch['gt'].numpy())
     writer.add_scalar(step, 'val/loss', loss_v.item())
-    #writer.add_scalar(step, 'val/psnr', psnr_v)
+    writer.add_scalar(step, 'val/psnr', psnr_v)
     #writer.add_scalar(step, 'val/ssim', ssim_v)
     img_total = all_cat_cpu(opt, log, pred)
     img_total_gt = all_cat_cpu(opt, log, gt)
+    img_total_noisy = all_cat_cpu(opt, log, img)
     grid = make_grid(img_total, nrow=16)
     grid_gt = make_grid(img_total_gt, nrow=16)
+    grid_noisy = make_grid(img_total_noisy, nrow=16)
     writer.add_image(step, 'val/gt', grid_gt)
     writer.add_image(step, 'val/pred', grid)
+    writer.add_image(step, 'val/noisy', grid_noisy)
 
 def main(rank, world_size, *args, **kwargs):
     seed_everything(2024)
@@ -199,7 +196,8 @@ def main(rank, world_size, *args, **kwargs):
         #val_step(rank, world_size, step, model, val_dataloader, writer, log, opt)
 
         torch.save({'Gnet':model.Gnet.state_dict(),
-                'Dnet':model.Dnet.state_dict()}, os.path.join(opt.ckpt_dir, "{}_epoch_{}.ckpt".format(opt.name, epoch)))
+                    'Dnet':model.Dnet.state_dict()},
+                   os.path.join(opt.ckpt_dir, "{}_epoch_{}.ckpt".format(opt.name, epoch)))
 
     clean_up()
 

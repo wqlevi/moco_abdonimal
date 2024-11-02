@@ -91,9 +91,10 @@ class Res(nn.Module):
         super().__init__()
         self.encoder = resnet50(weights=False)
         if hasattr(self.encoder, 'conv1'): self.encoder.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
-        self.decoder = Decoder()
+        #self.decoder = Decoder()
 
-        [m.apply(init_weights) for m in [self.encoder, self.decoder]]
+        #[m.apply(init_weights) for m in [self.encoder, self.decoder]]
+        self.encoder.apply(init_weights)
 
     @property
     def load_model(self):
@@ -102,8 +103,8 @@ class Res(nn.Module):
     def load_model(self, ckpt_path:str=None):
         if not ckpt_path: raise ValueError("ckpt path is empty.")
         ckpt = load_ckpt(ckpt_path)
-        new_dict = update_dict_keys(ckpt, self.encoder.state_dict(), prefix_model= '')
-        self.encoder.load_state_dict(new_dict)
+        new_dict = update_dict_keys(ckpt['state_dict'], self.state_dict(), prefix_local='', prefix_model= '') #FIXME: unmatched keys
+        self.load_state_dict(new_dict)
         print('\033[93mEncoder loaded from  ckpt: {}\033[0m'.format(ckpt_path))
 
     @staticmethod
@@ -113,9 +114,9 @@ class Res(nn.Module):
 
     def forward(self,x):
         z = self.encoder(x)
-        z = z[...,None,None] # 2D latent to 4D tensor [B, C, H, W]
-        o = self.decoder(z)
-        return [o,x]
+        #z = z[...,None,None] # 2D latent to 4D tensor [B, C, H, W]
+        #o = self.decoder(z)
+        return z
 
 class VAE(nn.Module):
     def __init__(self):

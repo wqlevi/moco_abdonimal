@@ -2,7 +2,7 @@
 TODO:
     - [x] noise design
     - [x] update sigma for noise design
-    - [ ] test forward back ward
+    - [x] test forward back ward
 """
 from pathlib import Path
 
@@ -23,6 +23,7 @@ class GAN_class:
         self.Gnet = Generator(num_res_blocks=arch_config['num_res_blocks']).to(rank)
         self.Dnet = Discriminator(input_shape=(1,opt['image_size'],opt['image_size'])).to(rank)
         if opt['FE']: self.FE = FeatureExtractor(arch_config['FE_type']).to(rank)
+        self.use_FE = True if opt['FE'] else False
 
         if not opt['ckpt_epoch'] == 0:
             ckpt = load_ckpt(Path(opt['ckpt_dir'], opt['ckpt_name']))
@@ -33,11 +34,13 @@ class GAN_class:
         if opt['distributed']:
             self.Gnet = DDP(self.Gnet, device_ids=[rank])
             self.Dnet = DDP(self.Dnet, device_ids=[rank])
+            self.FE = DDP(self.FE, device_ids=[rank])
             self.d_input_shape = (opt['microbatch'], *self.Dnet.module.input_shape)
             self.d_output_shape = (opt['microbatch'], *self.Dnet.module.output_shape)
             process_group = torch.distributed.new_group()
             self.Gnet = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.Gnet, process_group)
             self.Dnet = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.Dnet, process_group)
+            self.FE = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.FE, process_group)
         else:
             self.d_input_shape = (opt['microbatch'], *self.Dnet.input_shape)
             self.d_output_shape = (opt['microbatch'], *self.Dnet.output_shape)
@@ -69,7 +72,11 @@ class GAN_class:
         with torch.no_grad():
             pred_fake = self.Dnet(pred + self.instance_noise)
             pred_real = self.Dnet(gt + self.instance_noise).detach()
-        return F.l1_loss(pred, gt) + self.GAN_loss_g(pred_fake - pred_real.mean(0, keepdim=True), self.valid), pred
+        if not self.use_FE:
+            loss = F.l1_loss(pred, gt) + 5e-3*self.GAN_loss_g(pred_fake - pred_real.mean(0, keepdim=True), self.valid)
+        else:
+            loss = F.l1_loss(pred, gt) + 1e-2*F.l1_loss(self.FE(pred), self.FE(gt)) + 5e-3*self.GAN_loss_g(pred_fake - pred_real.mean(0, keepdim=True), self.valid) #FIXME: 'boo obj hsa no attr 'requires_grad'
+        return loss, pred
 
     def D_loss(self, img, gt):
         with torch.no_grad():

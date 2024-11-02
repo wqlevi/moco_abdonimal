@@ -24,7 +24,7 @@ def inner_loop(arr, *xyz, filename:str="", **kwargs):
     """
     i, ax = xyz
     im = convert_im(arr)
-    filename_save = filename.replace(innest_folder,"2d/"+innest_folder).replace(kwargs['filename_pattern'], "_wat_ax-{}={}.png".format(ax, i))
+    filename_save = filename.replace(innest_folder, save_level_folder).replace(kwargs['filename_pattern'], "_wat_ax-{}={}.png".format(ax, i))
     #print(filename_save)
     im.save(filename_save)
     
@@ -56,18 +56,24 @@ def main(filename:str, **kwargs):
 
 if __name__ == '__main__':
     data_path = sys.argv[1] if not sys.argv[1].endswith("/") else sys.argv[1][:-1]
+    level = None if not len(sys.argv) >2 else sys.argv[2] # a int for motion degree 
 
     global innest_folder
-    innest_folder = data_path.rsplit("/",1)[-1]
+    innest_folder = data_path.rsplit("/",1)[-1] # used to differ sim or GT
 
     # --- kwargs dict --- #
     kwargs = {}
+    if level is not None: kwargs['degree']=level
     kwargs["wildcard_pattern"] = "*wat.nii.gz" if innest_folder == "sim" else "**/wat.nii.gz"
     kwargs["filename_pattern"] = "_wat.nii.gz" if innest_folder == "sim" else "/wat.nii.gz"
 
+    global save_level_folder
+    save_level_folder = '2d/gt/'+innest_folder if not 'degree' in kwargs else '2d/{}/{}'.format(kwargs['degree'], innest_folder) # folder for motion level
+
     filepaths = list(sorted(Path(data_path).glob(kwargs['wildcard_pattern'])))[:100]
     print("\033[93m In Total: %d files \033[0m"%(len(filepaths)))
-    os.makedirs(data_path.replace(innest_folder,'2d/'+innest_folder), exist_ok=True)
+
+    os.makedirs(data_path.replace(innest_folder, save_level_folder), exist_ok=True)
 
     n_process = os.cpu_count()
     with Pool(n_process) as P:

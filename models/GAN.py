@@ -29,6 +29,7 @@ class FeatureExtractor(nn.Module):
             self.model = nn.Sequential(*list(vgg19_model.features.children())[:37])
         else:
             self.model = Res()
+            self.model.load_model='results/pretrained_resnet50_veronika/v1_epoch=372-step=5287275.ckpt'
 
     def forward(self, img):
         return self.model(img)
